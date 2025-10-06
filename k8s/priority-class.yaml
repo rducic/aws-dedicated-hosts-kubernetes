@@ -1,0 +1,15 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: dedicated-host-priority
+value: 1000
+globalDefault: false
+description: "Priority class for pods that should run on dedicated hosts"
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: default-tenancy-priority
+value: 100
+globalDefault: false
+description: "Priority class for pods that can run on default tenancy"

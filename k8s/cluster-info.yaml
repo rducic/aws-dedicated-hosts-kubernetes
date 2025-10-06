@@ -1,0 +1,160 @@
+# Simple cluster info web interface
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cluster-info-html
+  namespace: demo
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Dedicated Hosts Demo - Cluster Info</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+            .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+            h1 { color: #333; border-bottom: 2px solid #007acc; padding-bottom: 10px; }
+            .section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+            .dedicated { background-color: #e8f5e8; border-left: 4px solid #4caf50; }
+            .default { background-color: #fff3e0; border-left: 4px solid #ff9800; }
+            .node-info { display: inline-block; margin: 10px; padding: 10px; border: 1px solid #ccc; border-radius: 5px; min-width: 200px; }
+            .status { font-weight: bold; }
+            .ready { color: green; }
+            .not-ready { color: red; }
+            ul { list-style-type: none; padding: 0; }
+            li { margin: 5px 0; padding: 5px; background: #f9f9f9; border-radius: 3px; }
+        </style>
+        <script>
+            function refreshData() {
+                fetch('/api/cluster-info')
+                    .then(response => response.json())
+                    .then(data => updateDisplay(data))
+                    .catch(error => console.error('Error:', error));
+            }
+            
+            function updateDisplay(data) {
+                document.getElementById('cluster-info').innerHTML = JSON.stringify(data, null, 2);
+            }
+            
+            setInterval(refreshData, 30000); // Refresh every 30 seconds
+        </script>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🏗️ AWS Dedicated Hosts with Kubernetes Demo</h1>
+            
+            <div class="section">
+                <h2>📊 Architecture Overview</h2>
+                <p>This demo showcases intelligent pod placement across dedicated hosts and default tenancy instances.</p>
+                
+                <div class="dedicated">
+                    <h3>🔒 Dedicated Hosts (Compliance Tier)</h3>
+                    <ul>
+                        <li><strong>k8s-master</strong> - Control plane on dedicated host (us-west-2a)</li>
+                        <li><strong>k8s-dedicated-2</strong> - Worker node on dedicated host (us-west-2b)</li>
+                    </ul>
+                    <p><em>Tainted with dedicated-host=true:NoSchedule</em></p>
+                </div>
+                
+                <div class="default">
+                    <h3>☁️ Default Tenancy (Overflow Tier)</h3>
+                    <ul>
+                        <li><strong>k8s-default-1</strong> - Worker node, default tenancy (us-west-2a)</li>
+                        <li><strong>k8s-default-2</strong> - Worker node, default tenancy (us-west-2b)</li>
+                    </ul>
+                    <p><em>No taints - accepts overflow workloads</em></p>
+                </div>
+            </div>
+            
+            <div class="section">
+                <h2>🎯 Scheduling Behavior</h2>
+                <ul>
+                    <li><strong>Dedicated Tier Pods:</strong> Prefer dedicated hosts, tolerate taints, high priority (1000)</li>
+                    <li><strong>Overflow Tier Pods:</strong> Target default tenancy nodes, lower priority (100)</li>
+                    <li><strong>Graceful Overflow:</strong> When dedicated hosts are full, pods deploy to default tenancy</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>🔗 Management Links</h2>
+                <ul>
+                    <li><a href="https://MASTER_IP:30443" target="_blank">🎛️ Kubernetes Dashboard</a> (Token required)</li>
+                    <li><a href="http://MASTER_IP:30300" target="_blank">📊 Grafana</a> (admin/admin123)</li>
+                </ul>
+            </div>
+            
+            <div class="section">
+                <h2>🧪 Test Commands</h2>
+                <pre>
+    # Scale dedicated tier to see overflow
+    kubectl scale deployment demo-app-dedicated --replicas=16 -n demo
+
+    # Check pod distribution
+    kubectl get pods -n demo -o wide
+
+    # View node information
+    kubectl get nodes -o custom-columns="NAME:.metadata.name,TENANCY:.metadata.labels.tenancy,TAINTS:.spec.taints[*].key"
+                </pre>
+            </div>
+            
+            <div class="section">
+                <h2>💰 Cost Optimization</h2>
+                <p>This hybrid approach balances compliance requirements with cost efficiency:</p>
+                <ul>
+                    <li><strong>Dedicated Hosts:</strong> ~$1,000-2,000/month each (for compliance workloads)</li>
+                    <li><strong>Default Tenancy:</strong> Pay-per-use pricing (for overflow capacity)</li>
+                    <li><strong>Optimization:</strong> Maximize dedicated host utilization through intelligent scheduling</li>
+                </ul>
+            </div>
+        </div>
+    </body>
+    </html>
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cluster-info-web
+  namespace: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cluster-info-web
+  template:
+    metadata:
+      labels:
+        app: cluster-info-web
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:1.21
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: html-content
+          mountPath: /usr/share/nginx/html
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+      volumes:
+      - name: html-content
+        configMap:
+          name: cluster-info-html
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cluster-info-web
+  namespace: demo
+spec:
+  type: NodePort
+  ports:
+  - port: 80
+    targetPort: 80
+    nodePort: 30080
+  selector:
+    app: cluster-info-web

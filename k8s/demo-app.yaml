@@ -1,0 +1,116 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app-dedicated
+  namespace: demo
+  labels:
+    app: demo-app
+    tier: dedicated
+spec:
+  replicas: 8
+  selector:
+    matchLabels:
+      app: demo-app
+      tier: dedicated
+  template:
+    metadata:
+      labels:
+        app: demo-app
+        tier: dedicated
+    spec:
+      priorityClassName: dedicated-host-priority
+      # Prefer dedicated hosts but tolerate the taint
+      tolerations:
+      - key: "dedicated-host"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: tenancy
+                operator: In
+                values: ["dedicated"]
+          - weight: 50
+            preference:
+              matchExpressions:
+              - key: node-type
+                operator: In
+                values: ["dedicated-host"]
+      containers:
+      - name: demo-app
+        image: nginx:1.21
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-app-overflow
+  namespace: demo
+  labels:
+    app: demo-app
+    tier: overflow
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: demo-app
+      tier: overflow
+  template:
+    metadata:
+      labels:
+        app: demo-app
+        tier: overflow
+    spec:
+      priorityClassName: default-tenancy-priority
+      # These pods will run on default tenancy nodes
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: tenancy
+                operator: In
+                values: ["default"]
+      containers:
+      - name: demo-app
+        image: nginx:1.21
+        ports:
+        - containerPort: 80
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
