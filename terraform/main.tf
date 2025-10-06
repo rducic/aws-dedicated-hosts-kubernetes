@@ -8,7 +8,14 @@ terraform {
 }
 
 provider "aws" {
-  region = var.aws_region
+  region = "us-west-2"
+}
+
+# Variables
+variable "cluster_name" {
+  description = "Name of the Kubernetes cluster"
+  type        = string
+  default     = "dedicated-hosts-demo"
 }
 
 # Data sources
@@ -34,6 +41,7 @@ resource "aws_vpc" "main" {
   
   tags = {
     Name = "dedicated-hosts-vpc"
+    Project = "dedicated-hosts-demo"
   }
 }
 
@@ -42,6 +50,7 @@ resource "aws_internet_gateway" "main" {
   
   tags = {
     Name = "dedicated-hosts-igw"
+    Project = "dedicated-hosts-demo"
   }
 }
 
@@ -55,6 +64,7 @@ resource "aws_subnet" "public" {
   
   tags = {
     Name = "public-subnet-${count.index + 1}"
+    Project = "dedicated-hosts-demo"
     "kubernetes.io/role/elb" = "1"
   }
 }
@@ -69,6 +79,7 @@ resource "aws_route_table" "public" {
   
   tags = {
     Name = "public-rt"
+    Project = "dedicated-hosts-demo"
   }
 }
 
@@ -92,7 +103,7 @@ resource "aws_security_group" "k8s_nodes" {
     cidr_blocks = ["0.0.0.0/0"]
   }
   
-  # Kubernetes API server (allow from anywhere for demo)
+  # Kubernetes API server
   ingress {
     from_port   = 6443
     to_port     = 6443
@@ -116,26 +127,10 @@ resource "aws_security_group" "k8s_nodes" {
     self      = true
   }
   
-  # Kubernetes Dashboard
+  # Management UIs
   ingress {
-    from_port   = 30443
-    to_port     = 30443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  
-  # Grafana
-  ingress {
-    from_port   = 30300
-    to_port     = 30300
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  
-  # Cluster Info Web Interface
-  ingress {
-    from_port   = 30080
-    to_port     = 30080
+    from_port   = 30000
+    to_port     = 32767
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -149,16 +144,45 @@ resource "aws_security_group" "k8s_nodes" {
   
   tags = {
     Name = "k8s-nodes-sg"
+    Project = "dedicated-hosts-demo"
   }
 }
 
 # Key Pair
-resource "aws_key_pair" "k8s" {
+resource "aws_key_pair" "demo" {
   key_name   = "k8s-demo-key"
   public_key = file("~/.ssh/id_rsa.pub")
+  
+  tags = {
+    Name = "k8s-demo-key"
+    Project = "dedicated-hosts-demo"
+  }
 }
 
-# Dedicated Hosts
+# Master Node (Default Tenancy for Cost Optimization)
+resource "aws_instance" "master" {
+  ami                    = data.aws_ami.amazon_linux.id
+  instance_type          = "m5.large"
+  key_name              = aws_key_pair.demo.key_name
+  vpc_security_group_ids = [aws_security_group.k8s_nodes.id]
+  subnet_id             = aws_subnet.public[0].id
+  
+  # Master on default tenancy for cost optimization
+  tenancy = "default"
+  
+  user_data = base64encode(templatefile("${path.module}/user-data-master.sh", {
+    cluster_name = var.cluster_name
+  }))
+
+  tags = {
+    Name    = "k8s-master"
+    Project = "dedicated-hosts-demo"
+    Type    = "master"
+    Role    = "control-plane"
+  }
+}
+
+# Dedicated Hosts (2 hosts for worker nodes)
 resource "aws_ec2_host" "dedicated" {
   count = 2
   
@@ -167,91 +191,94 @@ resource "aws_ec2_host" "dedicated" {
   
   tags = {
     Name = "dedicated-host-${count.index + 1}"
+    Project = "dedicated-hosts-demo"
     Zone = data.aws_availability_zones.available.names[count.index]
   }
 }
 
-# Launch Template for Dedicated Host Instances
-resource "aws_launch_template" "dedicated_nodes" {
-  name_prefix   = "k8s-dedicated-"
-  image_id      = data.aws_ami.amazon_linux.id
-  instance_type = "m5.large"
-  key_name      = aws_key_pair.k8s.key_name
-  
+# Dedicated Host Worker Nodes (2 instances)
+resource "aws_instance" "dedicated_workers" {
+  count                  = 2
+  ami                    = data.aws_ami.amazon_linux.id
+  instance_type          = "m5.large"
+  key_name              = aws_key_pair.demo.key_name
   vpc_security_group_ids = [aws_security_group.k8s_nodes.id]
+  subnet_id             = aws_subnet.public[count.index % 2].id
   
-  placement {
-    tenancy = "host"
-  }
+  # Place on dedicated hosts
+  tenancy = "host"
+  host_id = aws_ec2_host.dedicated[count.index].id
   
   user_data = base64encode(templatefile("${path.module}/user-data-dedicated.sh", {
     cluster_name = var.cluster_name
+    node_name = "k8s-dedicated-${count.index + 1}"
+    master_ip = aws_instance.master.private_ip
   }))
-  
-  tag_specifications {
-    resource_type = "instance"
-    tags = {
-      Name = "k8s-dedicated-node"
-      Type = "dedicated"
-      "kubernetes.io/cluster/${var.cluster_name}" = "owned"
-    }
+
+  tags = {
+    Name    = "k8s-dedicated-${count.index + 1}"
+    Project = "dedicated-hosts-demo"
+    Type    = "dedicated-host"
+    Role    = "worker"
   }
+  
+  depends_on = [aws_instance.master]
 }
 
-# Launch Template for Default Tenancy Instances
-resource "aws_launch_template" "default_nodes" {
-  name_prefix   = "k8s-default-"
-  image_id      = data.aws_ami.amazon_linux.id
-  instance_type = "m5.large"
-  key_name      = aws_key_pair.k8s.key_name
-  
+# Default Tenancy Worker Nodes (2 instances for spillover)
+resource "aws_instance" "default_workers" {
+  count                  = 2
+  ami                    = data.aws_ami.amazon_linux.id
+  instance_type          = "m5.large"
+  key_name              = aws_key_pair.demo.key_name
   vpc_security_group_ids = [aws_security_group.k8s_nodes.id]
+  subnet_id             = aws_subnet.public[count.index % 2].id
+  
+  # Default tenancy for cost-effective spillover
+  tenancy = "default"
   
   user_data = base64encode(templatefile("${path.module}/user-data-default.sh", {
     cluster_name = var.cluster_name
+    node_name = "k8s-default-${count.index + 1}"
+    master_ip = aws_instance.master.private_ip
   }))
-  
-  tag_specifications {
-    resource_type = "instance"
-    tags = {
-      Name = "k8s-default-node"
-      Type = "default"
-      "kubernetes.io/cluster/${var.cluster_name}" = "owned"
-    }
+
+  tags = {
+    Name    = "k8s-default-${count.index + 1}"
+    Project = "dedicated-hosts-demo"
+    Type    = "default-tenancy"
+    Role    = "worker"
   }
+  
+  depends_on = [aws_instance.master]
 }
 
-# Dedicated Host Instances
-resource "aws_instance" "dedicated_nodes" {
-  count = 2
-  
-  launch_template {
-    id      = aws_launch_template.dedicated_nodes.id
-    version = "$Latest"
-  }
-  
-  subnet_id = aws_subnet.public[count.index].id
-  host_id   = aws_ec2_host.dedicated[count.index].id
-  
-  tags = {
-    Name = "k8s-dedicated-node-${count.index + 1}"
-    Zone = data.aws_availability_zones.available.names[count.index]
-  }
+# Outputs
+output "master_public_ip" {
+  description = "Public IP of the master node"
+  value       = aws_instance.master.public_ip
 }
 
-# Default Tenancy Instances (for overflow)
-resource "aws_instance" "default_nodes" {
-  count = 2
-  
-  launch_template {
-    id      = aws_launch_template.default_nodes.id
-    version = "$Latest"
-  }
-  
-  subnet_id = aws_subnet.public[count.index].id
-  
-  tags = {
-    Name = "k8s-default-node-${count.index + 1}"
-    Zone = data.aws_availability_zones.available.names[count.index]
+output "dedicated_worker_ips" {
+  description = "Public IPs of dedicated host worker nodes"
+  value       = aws_instance.dedicated_workers[*].public_ip
+}
+
+output "default_worker_ips" {
+  description = "Public IPs of default tenancy worker nodes"
+  value       = aws_instance.default_workers[*].public_ip
+}
+
+output "dedicated_host_ids" {
+  description = "IDs of the dedicated hosts"
+  value       = aws_ec2_host.dedicated[*].id
+}
+
+output "cluster_info" {
+  description = "Cluster connection information"
+  value = {
+    master_ip = aws_instance.master.public_ip
+    cluster_name = var.cluster_name
+    ssh_command = "ssh -i ~/.ssh/id_rsa ec2-user@${aws_instance.master.public_ip}"
   }
 }

@@ -1,0 +1,120 @@
+# Load generator and HPA setup for demonstrating overflow
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cpu-load-app
+  namespace: demo
+  labels:
+    app: cpu-load-app
+    tier: dedicated
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cpu-load-app
+      tier: dedicated
+  template:
+    metadata:
+      labels:
+        app: cpu-load-app
+        tier: dedicated
+    spec:
+      priorityClassName: dedicated-host-priority
+      # Prefer dedicated hosts but tolerate the taint
+      tolerations:
+      - key: "dedicated-host"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+              - key: tenancy
+                operator: In
+                values: ["dedicated"]
+      containers:
+      - name: cpu-load
+        image: busybox:1.35
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Starting CPU load generator..."
+          while true; do
+            # Generate CPU load for 30 seconds, then rest for 10 seconds
+            timeout 30s yes > /dev/null &
+            timeout 30s yes > /dev/null &
+            wait
+            sleep 10
+          done
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cpu-load-service
+  namespace: demo
+  labels:
+    app: cpu-load-app
+spec:
+  ports:
+  - port: 80
+    targetPort: 8080
+    name: http
+  selector:
+    app: cpu-load-app
+---
+# Horizontal Pod Autoscaler for automatic scaling
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cpu-load-hpa
+  namespace: demo
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cpu-load-app
+  minReplicas: 2
+  maxReplicas: 60
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 50
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 30
+      - type: Pods
+        value: 5
+        periodSeconds: 30
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
