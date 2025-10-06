@@ -1,0 +1,10 @@
+# Copy this file to terraform.tfvars and customize for your deployment
+
+# AWS Region where resources will be created
+aws_region = "us-west-2"
+
+# Name for the Kubernetes cluster
+cluster_name = "aws-dedicated-hosts-k8s-demo"
+
+# EC2 instance type for worker nodes
+instance_type = "m5.large"
