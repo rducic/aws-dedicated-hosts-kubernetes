@@ -43,47 +43,49 @@ This repo showcases how to deploy a self-managed Kubernetes cluster across AWS D
 - kubectl >= 1.28
 - SSH key pair at `~/.ssh/id_rsa` and `~/.ssh/id_rsa.pub`
 
-### Deployment Steps
+### One-Command Deployment
+```bash
+# Automated setup (recommended)
+./quick_setup.sh
+```
+
+### Manual Deployment Steps
 
 1. **Deploy Infrastructure**
    ```bash
-   cp terraform.tfvars.example terraform.tfvars
-   cd terraform && terraform init && terraform apply && cd ..
+   cd terraform && terraform init && terraform apply -auto-approve && cd ..
    ```
 
-2. **Wait for Nodes**
-   ```bash
-   ./scripts/wait-for-nodes.sh
-   ```
-
-3. **Setup Kubernetes Cluster**
+2. **Setup Kubernetes Cluster**
    ```bash
    ./scripts/setup-cluster.sh
    ```
 
-4. **Deploy Demo Application**
+3. **Deploy Demo Applications**
    ```bash
    # SSH to master node (get IP from terraform output)
-   ssh ec2-user@<MASTER_PUBLIC_IP>
+   ssh ec2-user@$(terraform -chdir=terraform output -raw master_public_ip)
    
-   # Deploy applications
-   kubectl apply -f k8s/namespace.yaml
-   kubectl apply -f k8s/priority-class.yaml
-   kubectl apply -f k8s/demo-app.yaml
-   kubectl apply -f k8s/service.yaml
+   # Deploy all resources
+   kubectl apply -f k8s/
    ```
 
-5. **Deploy Management UIs**
-   ```bash
-   ./scripts/deploy-management-ui.sh
-   ```
-
-6. **Test Scaling**
+4. **Test Scaling and Access UIs**
    ```bash
    # Scale to see overflow behavior
-   kubectl scale deployment demo-app-dedicated --replicas=12 -n demo
-   kubectl get pods -n demo -o wide
+   kubectl scale deployment demo-app-dedicated --replicas=8 -n demo
+   
+   # Access management UIs
+   echo "Dashboard: https://$(terraform -chdir=terraform output -raw master_public_ip):30443"
+   echo "Grafana: http://$(terraform -chdir=terraform output -raw master_public_ip):30300"
    ```
+
+### Complete Cleanup
+```bash
+./scripts/cleanup.sh
+```
+
+📖 **For detailed instructions, see [END-TO-END-FLOW.md](END-TO-END-FLOW.md)**
 
 ## 📊 Demo Results
 
@@ -183,10 +185,18 @@ See [COST-ANALYSIS.md](COST-ANALYSIS.md) for detailed breakdown and optimization
 ./scripts/cleanup.sh
 ```
 
-This removes all Kubernetes resources and destroys the AWS infrastructure.
+This comprehensive cleanup script:
+- Removes all Kubernetes resources and namespaces
+- Destroys AWS infrastructure (EC2 instances, Dedicated Hosts, VPC)
+- Cleans up local Terraform state and cache files
+- Removes SSH known_hosts entries
+- Verifies complete cleanup
+
+For detailed cleanup procedures, see [END-TO-END-FLOW.md](END-TO-END-FLOW.md#phase-5-complete-cleanup).
 
 ## 📚 Documentation
 
+- [**End-to-End Flow Guide**](END-TO-END-FLOW.md) - Complete walkthrough from setup to cleanup
 - [**Deployment Guide**](DEPLOYMENT-GUIDE.md) - Step-by-step deployment instructions
 - [**Architecture Documentation**](ARCHITECTURE.md) - Technical deep dive
 - [**Lessons Learned**](LESSONS-LEARNED.md) - Implementation challenges and solutions

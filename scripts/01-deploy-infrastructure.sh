@@ -21,9 +21,9 @@ echo "📊 Infrastructure deployment complete!"
 echo ""
 
 # Get outputs
-MASTER_IP=$(terraform output -raw master_public_ip)
-DEDICATED_IPS=$(terraform output -json dedicated_worker_ips | jq -r '.[]')
-DEFAULT_IPS=$(terraform output -json default_worker_ips | jq -r '.[]')
+MASTER_IP=$(terraform output -json master_info | jq -r '.public_ip')
+DEDICATED_IPS=$(terraform output -json dedicated_worker_private_ips | jq -r '.[]')
+DEFAULT_IPS=$(terraform output -json default_worker_private_ips | jq -r '.[]')
 
 echo "🎯 Infrastructure Summary:"
 echo "========================="

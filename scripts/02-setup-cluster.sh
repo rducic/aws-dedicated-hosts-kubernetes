@@ -9,9 +9,9 @@ echo "================================"
 cd terraform
 
 # Get infrastructure details
-MASTER_IP=$(terraform output -raw master_public_ip)
-DEDICATED_IPS=$(terraform output -json dedicated_worker_ips | jq -r '.[]')
-DEFAULT_IPS=$(terraform output -json default_worker_ips | jq -r '.[]')
+MASTER_IP=$(terraform output -json master_info | jq -r '.public_ip')
+DEDICATED_IPS=$(terraform output -json dedicated_worker_private_ips | jq -r '.[]')
+DEFAULT_IPS=$(terraform output -json default_worker_private_ips | jq -r '.[]')
 
 echo "📋 Cluster nodes:"
 echo "Master: $MASTER_IP"
@@ -37,12 +37,12 @@ JOIN_COMMAND=$(ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ec2-user@$MASTER
 echo "Join command: $JOIN_COMMAND"
 echo ""
 
-# Join dedicated workers
+# Join dedicated workers (using master as jump host)
 echo "🏠 Joining dedicated host workers..."
 node_num=1
 for ip in $DEDICATED_IPS; do
     echo "Joining k8s-dedicated-$node_num ($ip)..."
-    ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ec2-user@$ip "sudo $JOIN_COMMAND --node-name=k8s-dedicated-$node_num"
+    ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o ProxyCommand="ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -W %h:%p ec2-user@$MASTER_IP" ec2-user@$ip "sudo $JOIN_COMMAND --node-name=k8s-dedicated-$node_num"
     
     # Add taint for dedicated hosts
     sleep 10
@@ -51,12 +51,12 @@ for ip in $DEDICATED_IPS; do
     node_num=$((node_num + 1))
 done
 
-# Join default workers
+# Join default workers (using master as jump host)
 echo "🌐 Joining default tenancy workers..."
 node_num=1
 for ip in $DEFAULT_IPS; do
     echo "Joining k8s-default-$node_num ($ip)..."
-    ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ec2-user@$ip "sudo $JOIN_COMMAND --node-name=k8s-default-$node_num"
+    ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -o ProxyCommand="ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no -W %h:%p ec2-user@$MASTER_IP" ec2-user@$ip "sudo $JOIN_COMMAND --node-name=k8s-default-$node_num"
     node_num=$((node_num + 1))
 done
 

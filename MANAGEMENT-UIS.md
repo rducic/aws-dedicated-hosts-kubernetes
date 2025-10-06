@@ -18,8 +18,12 @@ MASTER_IP=$(terraform -chdir=terraform output -json dedicated_node_ips | jq -r '
 echo "Master IP: $MASTER_IP"
 ```
 
-**Generate Access Token**:
+**Deploy Admin User and Generate Access Token**:
 ```bash
+# First, deploy the admin user (if not already done)
+ssh ec2-user@$MASTER_IP "kubectl apply -f k8s/dashboard-admin-user.yaml"
+
+# Then generate the token
 ssh ec2-user@$MASTER_IP "kubectl -n kubernetes-dashboard create token admin-user --duration=24h"
 ```
 
@@ -66,7 +70,10 @@ Use the provided script to update security groups for future deployments:
 ### Generate New Dashboard Token
 ```bash
 # SSH to master node
-ssh ec2-user@35.91.75.188
+ssh ec2-user@<MASTER_IP>
+
+# Deploy admin user if not already done
+kubectl apply -f k8s/dashboard-admin-user.yaml
 
 # Generate new 24-hour token
 kubectl -n kubernetes-dashboard create token admin-user --duration=24h

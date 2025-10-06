@@ -17,6 +17,7 @@ kubectl apply -f k8s/load-generator.yaml --insecure-skip-tls-verify
 # Deploy management UIs
 echo "🖥️  Deploying management UIs..."
 kubectl apply -f k8s/dashboard.yaml --insecure-skip-tls-verify
+kubectl apply -f k8s/dashboard-admin-user.yaml --insecure-skip-tls-verify
 kubectl apply -f k8s/metrics-server.yaml --insecure-skip-tls-verify
 kubectl apply -f k8s/cluster-info.yaml --insecure-skip-tls-verify
 
