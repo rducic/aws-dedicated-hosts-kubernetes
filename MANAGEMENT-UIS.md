@@ -3,7 +3,7 @@
 ## 🎛️ Deployed Management Interfaces
 
 ### 1. Kubernetes Dashboard ✅ **ACCESSIBLE**
-- **URL**: `https://35.91.75.188:30443`
+- **URL**: `https://<MASTER_PUBLIC_IP>:30443`
 - **Purpose**: Full-featured Kubernetes cluster management interface
 - **Authentication**: Token-based (generate new token as needed)
 - **Features**:
@@ -12,13 +12,19 @@
   - Deploy and scale applications
   - View logs and events
 
+**Get Master Public IP**:
+```bash
+MASTER_IP=$(terraform -chdir=terraform output -json dedicated_node_ips | jq -r '.[0]')
+echo "Master IP: $MASTER_IP"
+```
+
 **Generate Access Token**:
 ```bash
-ssh ec2-user@35.91.75.188 "kubectl -n kubernetes-dashboard create token admin-user --duration=24h"
+ssh ec2-user@$MASTER_IP "kubectl -n kubernetes-dashboard create token admin-user --duration=24h"
 ```
 
 ### 2. Grafana Monitoring Dashboard ✅ **ACCESSIBLE**
-- **URL**: `http://35.91.75.188:30300`
+- **URL**: `http://<MASTER_PUBLIC_IP>:30300`
 - **Username**: `admin`
 - **Password**: `admin123`
 - **Purpose**: Metrics visualization and monitoring
@@ -29,7 +35,7 @@ ssh ec2-user@35.91.75.188 "kubectl -n kubernetes-dashboard create token admin-us
   - Historical data analysis
 
 ### 3. Cluster Info Web Interface ✅ **ACCESSIBLE**
-- **URL**: `http://35.91.75.188:30080`
+- **URL**: `http://<MASTER_PUBLIC_IP>:30080`
 - **Purpose**: Demo-specific information and architecture overview
 - **Features**:
   - Visual architecture diagram

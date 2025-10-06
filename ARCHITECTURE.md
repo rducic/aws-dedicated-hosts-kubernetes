@@ -7,15 +7,15 @@
 This solution demonstrates a hybrid cloud architecture where workloads intelligently distribute across dedicated and shared infrastructure based on capacity and scheduling preferences.
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              AWS Account                                    │
-│                                                                             │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
+┌───────────────────────────────────────────────────────────────────────────┐
+│                              AWS Account                                  │
+│                                                                           │
+│  ┌────────────────────────────────────────────────────────────────────┐   │
 │  │                        VPC (10.0.0.0/16)                           │   │
-│  │                                                                     │   │
+│  │                                                                    │   │
 │  │  ┌──────────────────────┐    ┌──────────────────────────────────┐  │   │
 │  │  │    Subnet AZ-A       │    │         Subnet AZ-B              │  │   │
-│  │  │   (10.0.1.0/24)      │    │        (10.0.2.0/24)            │  │   │
+│  │  │   (10.0.1.0/24)      │    │        (10.0.2.0/24)             │  │   │
 │  │  │                      │    │                                  │  │   │
 │  │  │  ┌─────────────────┐ │    │  ┌─────────────────────────────┐ │  │   │
 │  │  │  │ Dedicated Host  │ │    │  │      Dedicated Host         │ │  │   │
@@ -38,8 +38,8 @@ This solution demonstrates a hybrid cloud architecture where workloads intellige
 │  │  │  │ └─────────────┘ │ │    │  │ └─────────────────────────┘ │ │  │   │
 │  │  │  └─────────────────┘ │    │  └─────────────────────────────┘ │  │   │
 │  │  └──────────────────────┘    └──────────────────────────────────┘  │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-└─────────────────────────────────────────────────────────────────────────────┘
+│  └────────────────────────────────────────────────────────────────────┘   │
+└───────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Component Architecture
@@ -265,7 +265,7 @@ Application Logs → Container Runtime → Kubelet → Log Aggregation
 - Pods per Node: ~110 (Kubernetes default)
 
 **Scaling Strategies**
-1. Add more dedicated hosts for compliance workloads
+1. Add more dedicated hosts for predictable workloads
 2. Add default tenancy instances for overflow capacity
 3. Implement cluster autoscaling for dynamic scaling
 
@@ -306,15 +306,6 @@ Application Logs → Container Runtime → Kubelet → Log Aggregation
 
 ## Cost Optimization
 
-### Resource Utilization
-
-```
-Cost Breakdown:
-├── Dedicated Hosts: 80% of total cost
-├── Default Instances: 15% of total cost
-├── Networking: 3% of total cost
-└── Storage: 2% of total cost
-```
 
 ### Optimization Strategies
 

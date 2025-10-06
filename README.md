@@ -1,6 +1,6 @@
 # AWS Dedicated Hosts with Kubernetes Demo
 
-This demo showcases how to deploy a self-managed Kubernetes cluster across AWS Dedicated Hosts in multiple Availability Zones, with intelligent pod placement that fills dedicated capacity first before overflowing to default tenancy instances.
+This repo showcases how to deploy a self-managed Kubernetes cluster across AWS Dedicated Hosts in multiple Availability Zones, with intelligent pod placement that fills dedicated capacity first before overflowing to default tenancy instances.
 
 ## 🎯 What This Demo Shows
 
@@ -13,7 +13,7 @@ This demo showcases how to deploy a self-managed Kubernetes cluster across AWS D
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        AWS VPC (10.0.0.0/16)                   │
+│                        AWS VPC (10.0.0.0/16)                    │
 ├─────────────────────────────┬───────────────────────────────────┤
 │         AZ us-west-2a       │         AZ us-west-2b             │
 │                             │                                   │
@@ -113,9 +113,11 @@ demo-app-overflow-5f8bd76b8-czsdp   k8s-default-1
 
 After deployment, access these management interfaces:
 
-- **🎛️ Kubernetes Dashboard**: `https://35.91.75.188:30443` (Token required)
-- **📊 Grafana**: `http://35.91.75.188:30300` (admin/admin123)
-- **ℹ️ Cluster Info**: `http://35.91.75.188:30080` (Demo overview)
+- **🎛️ Kubernetes Dashboard**: `https://<MASTER_PUBLIC_IP>:30443` (Token required)
+- **📊 Grafana**: `http://<MASTER_PUBLIC_IP>:30300` (admin/admin123)
+- **ℹ️ Cluster Info**: `http://<MASTER_PUBLIC_IP>:30080` (Demo overview)
+
+**Get Master Public IP**: `terraform -chdir=terraform output dedicated_node_ips`
 
 See [MANAGEMENT-UIS.md](MANAGEMENT-UIS.md) for detailed access instructions and features.
 
@@ -147,7 +149,8 @@ See [MANAGEMENT-UIS.md](MANAGEMENT-UIS.md) for detailed access instructions and 
     ├── DEPLOYMENT-GUIDE.md # Detailed deployment guide
     ├── ARCHITECTURE.md     # Technical architecture
     ├── LESSONS-LEARNED.md  # Implementation insights
-    └── MANAGEMENT-UIS.md   # Management interface guide
+    ├── MANAGEMENT-UIS.md   # Management interface guide
+    └── COST-ANALYSIS.md    # Cost breakdown and optimization
 ```
 
 ## 🔧 Key Technologies
@@ -165,11 +168,14 @@ See [MANAGEMENT-UIS.md](MANAGEMENT-UIS.md) for detailed access instructions and 
 - **Priority Classes**: Higher priority for dedicated host workloads
 - **Resource Limits**: Controlled resource allocation per pod
 
-## 💰 Cost Considerations
+## 💰 Cost Analysis
 
-- **Dedicated Hosts**: ~$1,000-2,000/month per host
-- **Optimization**: Maximize utilization through intelligent scheduling
-- **Hybrid Approach**: Use dedicated hosts only where required, default tenancy for overflow
+**12-Month Total**: $100,172 USD ([AWS Calculator](https://calculator.aws/#/estimate?id=8083593f9ef4512e2de21dfc7df49fa8e598b914))
+- **Per Dedicated Host**: $4,174/month ($50,086/year)
+- **GP3 Storage**: $0.08/GB/month
+- **Network Latency**: <5ms inter-AZ (published AWS latency)
+
+See [COST-ANALYSIS.md](COST-ANALYSIS.md) for detailed breakdown and optimization strategies.
 
 ## 🧹 Cleanup
 

@@ -8,24 +8,28 @@ Your AWS Dedicated Hosts with Kubernetes demo is fully deployed and all manageme
 
 | Interface | URL | Credentials | Status |
 |-----------|-----|-------------|--------|
-| **Kubernetes Dashboard** | https://35.91.75.188:30443 | Token-based | ✅ **LIVE** |
-| **Grafana** | http://35.91.75.188:30300 | admin/admin123 | ✅ **LIVE** |
-| **Cluster Info** | http://35.91.75.188:30080 | No auth required | ✅ **LIVE** |
+| **Kubernetes Dashboard** | https://\<MASTER_PUBLIC_IP\>:30443 | Token-based | ✅ **LIVE** |
+| **Grafana** | http://\<MASTER_PUBLIC_IP\>:30300 | admin/admin123 | ✅ **LIVE** |
+| **Cluster Info** | http://\<MASTER_PUBLIC_IP\>:30080 | No auth required | ✅ **LIVE** |
 
 ### 🔑 **Quick Access Commands**
 
 ```bash
+# Get master node public IP
+MASTER_IP=$(terraform -chdir=terraform output -json dedicated_node_ips | jq -r '.[0]')
+echo "Master IP: $MASTER_IP"
+
 # Generate Kubernetes Dashboard token
-ssh ec2-user@35.91.75.188 "kubectl -n kubernetes-dashboard create token admin-user --duration=24h"
+ssh ec2-user@$MASTER_IP "kubectl -n kubernetes-dashboard create token admin-user --duration=24h"
 
 # Check cluster status
-ssh ec2-user@35.91.75.188 "kubectl get nodes -o wide"
+ssh ec2-user@$MASTER_IP "kubectl get nodes -o wide"
 
 # View pod distribution
-ssh ec2-user@35.91.75.188 "kubectl get pods -n demo -o wide"
+ssh ec2-user@$MASTER_IP "kubectl get pods -n demo -o wide"
 
 # Scale to test overflow behavior
-ssh ec2-user@35.91.75.188 "kubectl scale deployment demo-app-dedicated --replicas=16 -n demo"
+ssh ec2-user@$MASTER_IP "kubectl scale deployment demo-app-dedicated --replicas=16 -n demo"
 ```
 
 ### 🏗️ **Architecture Overview**
@@ -52,19 +56,19 @@ ssh ec2-user@35.91.75.188 "kubectl scale deployment demo-app-dedicated --replica
 
 ### 📊 **What You Can Explore**
 
-#### Kubernetes Dashboard (https://35.91.75.188:30443)
+#### Kubernetes Dashboard (https://\<MASTER_PUBLIC_IP\>:30443)
 1. **Workloads** → **Deployments**: View demo applications
 2. **Cluster** → **Nodes**: See dedicated vs default tenancy nodes
 3. **Cluster** → **Events**: Observe scheduling decisions
 4. **Config and Storage** → **Config Maps**: View cluster configuration
 
-#### Grafana (http://35.91.75.188:30300)
+#### Grafana (http://\<MASTER_PUBLIC_IP\>:30300)
 1. **Explore**: Browse available metrics
 2. **Dashboards**: Create custom views for dedicated hosts
 3. **Alerting**: Set up notifications for resource thresholds
 4. **Data Sources**: Configure additional monitoring sources
 
-#### Cluster Info (http://35.91.75.188:30080)
+#### Cluster Info (http://\<MASTER_PUBLIC_IP\>:30080)
 1. **Architecture Diagram**: Visual representation of the setup
 2. **Scheduling Logic**: Understanding pod placement behavior
 3. **Test Commands**: Copy-paste commands for experimentation
